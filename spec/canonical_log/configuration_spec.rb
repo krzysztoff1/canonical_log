@@ -66,15 +66,15 @@ RSpec.describe CanonicalLog::Configuration do
       expect(config.should_sample?({ http_status: 200 })).to be true
     end
 
-    it 'does not call Sampling.default when sample_rate >= 1.0' do
+    it 'does not call Sampling.sample? when sample_rate >= 1.0' do
       config.sample_rate = 1.0
-      expect(CanonicalLog::Sampling).not_to receive(:default)
+      expect(CanonicalLog::Sampling).not_to receive(:sample?)
       config.should_sample?({ http_status: 200 })
     end
 
-    it 'delegates to Sampling.default when sample_rate < 1.0' do
+    it 'delegates to Sampling.sample? when sample_rate < 1.0' do
       config.sample_rate = 0.5
-      expect(CanonicalLog::Sampling).to receive(:default).with({ http_status: 200 }, config).and_return(true)
+      expect(CanonicalLog::Sampling).to receive(:sample?).with({ http_status: 200 }, config).and_return(true)
       expect(config.should_sample?({ http_status: 200 })).to be true
     end
 

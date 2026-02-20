@@ -35,7 +35,7 @@ module CanonicalLog
       elsif @sample_rate >= 1.0
         true
       else
-        Sampling.default(event_hash, self)
+        Sampling.sample?(event_hash, self)
       end
     end
   end

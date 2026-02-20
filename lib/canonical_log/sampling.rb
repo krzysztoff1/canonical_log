@@ -3,7 +3,7 @@
 module CanonicalLog
   module Sampling
     # Default sampling: always keep errors and slow requests, sample the rest.
-    def self.default(event_hash, config)
+    def self.sample?(event_hash, config)
       status = event_hash[:http_status] || 0
       duration = event_hash[:duration_ms] || 0
 

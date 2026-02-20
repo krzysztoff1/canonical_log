@@ -52,18 +52,24 @@ module CanonicalLog
 
       config = CanonicalLog.configuration
       if config.user_context
-        begin
-          user_fields = config.user_context.call(env)
-          event.add(user_fields) if user_fields.is_a?(Hash)
-        rescue StandardError => e
-          warn "[CanonicalLog] user_context error: #{e.message}"
-        end
+        enrich_from_user_context_proc(env, event, config)
       elsif defined?(Warden::Manager) && env['warden']
-        user = env['warden'].user rescue nil
-        if user
-          event.context(:user, id: user.try(:id), email: user.try(:email))
-        end
+        enrich_from_warden(env, event)
       end
+    end
+
+    def enrich_from_user_context_proc(env, event, config)
+      user_fields = config.user_context.call(env)
+      event.add(user_fields) if user_fields.is_a?(Hash)
+    rescue StandardError => e
+      warn "[CanonicalLog] user_context error: #{e.message}"
+    end
+
+    def enrich_from_warden(env, event)
+      user = env['warden'].user
+      event.context(:user, id: user.try(:id), email: user.try(:email)) if user
+    rescue StandardError
+      nil
     end
 
     def emit!
