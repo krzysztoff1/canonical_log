@@ -82,6 +82,8 @@ module CanonicalLog
       event_hash = event.to_h
       return unless config.should_sample?(event_hash)
 
+      event_hash[:message] ||= build_message(event_hash)
+
       json = event_hash.to_json
 
       config.resolved_sinks.each do |sink|
@@ -91,6 +93,10 @@ module CanonicalLog
       end
     rescue StandardError => e
       warn "[CanonicalLog] Emit error: #{e.message}"
+    end
+
+    def build_message(event_hash)
+      [event_hash[:http_method], event_hash[:path], event_hash[:http_status]].compact.join(' ')
     end
 
     def ignored_path?(env)

@@ -13,6 +13,8 @@ require_relative 'canonical_log/sinks/stdout'
 require_relative 'canonical_log/sinks/rails_logger'
 require_relative 'canonical_log/subscribers/action_controller'
 require_relative 'canonical_log/subscribers/active_record'
+require_relative 'canonical_log/integrations/error_enrichment'
+require_relative 'canonical_log/integrations/sidekiq' if defined?(Sidekiq)
 
 require_relative 'canonical_log/railtie' if defined?(Rails::Railtie)
 
