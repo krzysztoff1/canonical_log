@@ -16,6 +16,7 @@ RSpec.configure do |config|
 
   config.before(:each) do
     CanonicalLog.reset_configuration!
+    CanonicalLog.configure { |c| c.sinks = [CanonicalLog::Sinks::Null.new] }
     CanonicalLog::Context.clear!
   end
 end

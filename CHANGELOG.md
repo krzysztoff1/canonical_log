@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.3] - 2026-02-28
+
+### Added
+- Null sink (`CanonicalLog::Sinks::Null`) — silent no-op sink for use in tests
+- Tests default to Null sink via `spec_helper.rb` to suppress log output unless explicitly configured
+
 ## [0.1.2] - 2026-02-21
 
 ### Added
