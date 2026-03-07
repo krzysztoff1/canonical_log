@@ -17,47 +17,14 @@ timing, controller, params, DB queries, user info, errors, and business logic fi
 
 ## Step 1: Install the gem
 
-Add to Gemfile:
-
-gem "canonical_log"
-
 Run:
 
-bundle install
+bundle add canonical_log
 rails generate canonical_log:install
 
-This creates `config/initializers/canonical_log.rb`.
-
-## Step 2: Configure the initializer
-
-Update `config/initializers/canonical_log.rb`:
-
-CanonicalLog.configure do |config|
-  # Filter sensitive params
-  config.param_filter_keys = %w[password password_confirmation token secret api_key access_token]
-
-  # Capture slow queries individually (queries above this threshold in ms)
-  config.slow_query_threshold_ms = 100.0
-
-  # Skip noisy paths
-  config.ignored_paths = ["/health", "/assets", %r{\A/packs}]
-
-  # Extract user context from Warden/Devise automatically.
-  # For custom user context, uncomment and adapt:
-  # config.user_context = ->(env) {
-  #   user = env['warden']&.user
-  #   if user
-  #     { id: user.id, email: user.email, role: user.role }
-  #   else
-  #     {}
-  #   end
-  # }
-
-  # Add global fields before each event is emitted
-  config.before_emit = ->(event) {
-    event.context(:service, version: ENV.fetch("APP_VERSION", "unknown"))
-  }
-end
+The generator creates `config/initializers/canonical_log.rb` with all available
+options commented out. Open it and uncomment/adjust the settings you need.
+See the gem's README for details on each option.
 
 ## Step 3: Add error enrichment to ApplicationController
 
