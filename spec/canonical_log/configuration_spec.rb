@@ -9,7 +9,10 @@ RSpec.describe CanonicalLog::Configuration do
     end
 
     it 'has default param filter keys' do
-      expect(config.param_filter_keys).to include('password', 'token')
+      expect(config.param_filter_keys).to include(
+        'password', 'password_confirmation', 'token', 'secret', 'secret_key',
+        'api_key', 'access_token', 'credit_card', 'card_number', 'cvv', 'ssn', 'authorization'
+      )
     end
 
     it 'has a default slow query threshold' do
@@ -38,6 +41,54 @@ RSpec.describe CanonicalLog::Configuration do
 
     it 'has nil sampling' do
       expect(config.sampling).to be_nil
+    end
+
+    it 'defaults enabled to true when Rails is not defined' do
+      expect(config.enabled).to be true
+    end
+
+    it 'defaults enabled to false in non-production Rails env' do
+      rails = double('Rails', env: ActiveSupport::StringInquirer.new('development'))
+      stub_const('Rails', rails)
+      expect(described_class.new.enabled).to be false
+    end
+
+    it 'defaults enabled to true in production Rails env' do
+      rails = double('Rails', env: ActiveSupport::StringInquirer.new('production'))
+      stub_const('Rails', rails)
+      expect(described_class.new.enabled).to be true
+    end
+
+    it 'has suppress_rails_logging false by default' do
+      expect(config.suppress_rails_logging).to be false
+    end
+
+    it 'has format :json by default' do
+      expect(config.format).to eq(:json)
+    end
+
+    it 'has pretty false by default (backward compat)' do
+      expect(config.pretty?).to be false
+    end
+
+    it 'has filter_sql_literals true by default' do
+      expect(config.filter_sql_literals).to be true
+    end
+
+    it 'has filter_query_string true by default' do
+      expect(config.filter_query_string).to be true
+    end
+
+    it 'has nil log_level_resolver by default' do
+      expect(config.log_level_resolver).to be_nil
+    end
+
+    it 'has empty default_fields by default' do
+      expect(config.default_fields).to eq({})
+    end
+
+    it 'has error_backtrace_lines defaulting to 5' do
+      expect(config.error_backtrace_lines).to eq(5)
     end
   end
 
@@ -102,6 +153,38 @@ RSpec.describe CanonicalLog::Configuration do
       config.sample_rate = 0.0
       config.sampling = ->(_event_hash, _cfg) { true }
       expect(config.should_sample?({ http_status: 200 })).to be true
+    end
+  end
+
+  describe '#resolve_log_level' do
+    it 'returns :error for status >= 500' do
+      expect(config.resolve_log_level({ http_status: 500 })).to eq(:error)
+      expect(config.resolve_log_level({ http_status: 503 })).to eq(:error)
+    end
+
+    it 'returns :warn for status >= 400' do
+      expect(config.resolve_log_level({ http_status: 404 })).to eq(:warn)
+      expect(config.resolve_log_level({ http_status: 422 })).to eq(:warn)
+    end
+
+    it 'returns :info for status < 400' do
+      expect(config.resolve_log_level({ http_status: 200 })).to eq(:info)
+      expect(config.resolve_log_level({ http_status: 301 })).to eq(:info)
+    end
+
+    it 'returns :error when error field is present regardless of status' do
+      expect(config.resolve_log_level({ http_status: 200, error: { class: 'RuntimeError' } })).to eq(:error)
+    end
+
+    it 'uses custom log_level_resolver when set' do
+      config.log_level_resolver = ->(_event_hash) { :debug }
+      expect(config.resolve_log_level({ http_status: 500 })).to eq(:debug)
+    end
+
+    it 'passes event_hash to custom resolver' do
+      config.log_level_resolver = ->(event_hash) { event_hash[:http_status] >= 500 ? :fatal : :info }
+      expect(config.resolve_log_level({ http_status: 500 })).to eq(:fatal)
+      expect(config.resolve_log_level({ http_status: 200 })).to eq(:info)
     end
   end
 

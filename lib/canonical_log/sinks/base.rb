@@ -5,7 +5,7 @@ module CanonicalLog
     # Duck-type interface for sinks.
     # Any object responding to #write(json_string) can be used as a sink.
     class Base
-      def write(json_string)
+      def write(json_string, level: :info)
         raise NotImplementedError, "#{self.class} must implement #write"
       end
     end

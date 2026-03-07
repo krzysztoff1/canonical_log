@@ -61,7 +61,7 @@ RSpec.describe CanonicalLog::Context do
     it 'delegates .append to current event' do
       CanonicalLog.append(:items, 'a')
       CanonicalLog.append(:items, 'b')
-      expect(described_class.current.to_h[:items]).to eq(%w[a b])
+      expect(described_class.current.to_h[:items]).to eq(['a', 'b'])
     end
 
     it 'delegates .context to current event' do

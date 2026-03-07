@@ -5,7 +5,7 @@ require 'time'
 
 module CanonicalLog
   class Event
-    CATEGORIES = %i[user business infra service].freeze
+    CATEGORIES = [:user, :business, :infra, :service].freeze
 
     def initialize
       @fields = {}
@@ -52,10 +52,13 @@ module CanonicalLog
     # Structured error capture
     def add_error(error, metadata = {})
       @mutex.synchronize do
-        @fields[:error] = {
+        backtrace_lines = CanonicalLog.configuration.error_backtrace_lines
+        error_hash = {
           class: error.class.name,
-          message: error.message
-        }.merge(metadata)
+          message: error.message,
+        }
+        error_hash[:backtrace] = error.backtrace.first(backtrace_lines) if backtrace_lines.positive? && error.backtrace
+        @fields[:error] = error_hash.merge(metadata)
       end
     end
 

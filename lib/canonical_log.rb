@@ -7,6 +7,8 @@ require_relative 'canonical_log/configuration'
 require_relative 'canonical_log/sampling'
 require_relative 'canonical_log/event'
 require_relative 'canonical_log/context'
+require_relative 'canonical_log/emitter'
+require_relative 'canonical_log/sql_sanitizer'
 require_relative 'canonical_log/middleware'
 require_relative 'canonical_log/sinks/base'
 require_relative 'canonical_log/sinks/stdout'
@@ -14,7 +16,12 @@ require_relative 'canonical_log/sinks/null'
 require_relative 'canonical_log/sinks/rails_logger'
 require_relative 'canonical_log/subscribers/action_controller'
 require_relative 'canonical_log/subscribers/active_record'
+require_relative 'canonical_log/subscribers/active_support_cache'
+require_relative 'canonical_log/formatters/pretty'
+require_relative 'canonical_log/formatters/logfmt'
+require_relative 'canonical_log/rails_log_suppressor'
 require_relative 'canonical_log/integrations/error_enrichment'
+require_relative 'canonical_log/subscribers/active_job' if defined?(ActiveJob)
 require_relative 'canonical_log/integrations/sidekiq' if defined?(Sidekiq)
 
 require_relative 'canonical_log/railtie' if defined?(Rails::Railtie)

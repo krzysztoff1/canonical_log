@@ -9,14 +9,14 @@ module CanonicalLog
         event.add(
           job_class: msg['class'],
           queue: queue,
-          jid: msg['jid']
+          jid: msg['jid'],
         )
 
         yield
       rescue Exception => e # rubocop:disable Lint/RescueException
         event&.add(
           error_class: e.class.name,
-          error_message: e.message
+          error_message: e.message,
         )
         raise
       ensure
@@ -30,17 +30,7 @@ module CanonicalLog
         event = Context.current
         return unless event
 
-        config = CanonicalLog.configuration
-        config.before_emit&.call(event)
-        json = event.to_json
-
-        config.resolved_sinks.each do |sink|
-          sink.write(json)
-        rescue StandardError => e
-          warn "[CanonicalLog] Sink error (#{sink.class}): #{e.message}"
-        end
-      rescue StandardError => e
-        warn "[CanonicalLog] Emit error: #{e.message}"
+        Emitter.emit!(event)
       end
     end
   end

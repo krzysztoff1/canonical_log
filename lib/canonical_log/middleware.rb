@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'uri'
+
 module CanonicalLog
   class Middleware
     def initialize(app)
@@ -7,43 +9,73 @@ module CanonicalLog
     end
 
     def call(env)
-      return @app.call(env) if ignored_path?(env)
+      return @app.call(env) if skip?(env)
 
       Context.init!
       seed_request_fields(env)
-
-      status, headers, body = @app.call(env)
-      Context.current&.set(:http_status, status)
-      enrich_user_context(env)
-      [status, headers, body]
+      execute_request(env)
     rescue Exception => e # rubocop:disable Lint/RescueException
       Context.current&.add_error(e)
       Context.current&.set(:http_status, 500)
       raise
     ensure
-      emit! if Context.current
-      Context.clear!
+      finalize!
     end
 
     private
+
+    def skip?(env)
+      config = CanonicalLog.configuration
+      !config.enabled || config.ignored_path?(env['PATH_INFO'])
+    end
 
     def seed_request_fields(env)
       event = Context.current
       return unless event
 
-      request_id = env['action_dispatch.request_id'] ||
-                   env['HTTP_X_REQUEST_ID'] ||
-                   SecureRandom.uuid
-
       event.add(
-        request_id: request_id,
+        request_id: resolve_request_id(env),
         http_method: env['REQUEST_METHOD'],
         path: env['PATH_INFO'],
-        query_string: env['QUERY_STRING'].to_s.empty? ? nil : env['QUERY_STRING'],
+        query_string: resolve_query_string(env),
         remote_ip: env['HTTP_X_FORWARDED_FOR'] || env['REMOTE_ADDR'],
         user_agent: env['HTTP_USER_AGENT'],
-        content_type: env['CONTENT_TYPE']
+        content_type: env['CONTENT_TYPE'],
+        request_size_bytes: env['CONTENT_LENGTH']&.to_i,
       )
+
+      enrich_trace_context(event)
+    end
+
+    def resolve_request_id(env)
+      env['action_dispatch.request_id'] || env['HTTP_X_REQUEST_ID'] || SecureRandom.uuid
+    end
+
+    def resolve_query_string(env)
+      raw = env['QUERY_STRING'].to_s
+      return nil if raw.empty?
+
+      CanonicalLog.configuration.filter_query_string ? CanonicalLog.configuration.filtered_query(raw) : raw
+    end
+
+    def enrich_trace_context(event)
+      return unless defined?(OpenTelemetry::Trace)
+
+      span_context = OpenTelemetry::Trace.current_span.context
+      return unless span_context.valid?
+
+      event.add(
+        trace_id: span_context.hex_trace_id,
+        span_id: span_context.hex_span_id,
+      )
+    end
+
+    def execute_request(env)
+      status, headers, body = @app.call(env)
+      Context.current&.set(:http_status, status)
+      Context.current&.set(:response_size_bytes, headers['Content-Length']&.to_i)
+      enrich_user_context(env)
+      [status, headers, body]
     end
 
     def enrich_user_context(env)
@@ -72,41 +104,16 @@ module CanonicalLog
       nil
     end
 
+    def finalize!
+      emit! if Context.current
+      Context.clear!
+    end
+
     def emit!
       event = Context.current
       return unless event
 
-      config = CanonicalLog.configuration
-      config.before_emit&.call(event)
-
-      event_hash = event.to_h
-      return unless config.should_sample?(event_hash)
-
-      event_hash[:message] ||= build_message(event_hash)
-
-      json = event_hash.to_json
-
-      config.resolved_sinks.each do |sink|
-        sink.write(json)
-      rescue StandardError => e
-        warn "[CanonicalLog] Sink error (#{sink.class}): #{e.message}"
-      end
-    rescue StandardError => e
-      warn "[CanonicalLog] Emit error: #{e.message}"
-    end
-
-    def build_message(event_hash)
-      [event_hash[:http_method], event_hash[:path], event_hash[:http_status]].compact.join(' ')
-    end
-
-    def ignored_path?(env)
-      path = env['PATH_INFO']
-      CanonicalLog.configuration.ignored_paths.any? do |pattern|
-        case pattern
-        when Regexp then pattern.match?(path)
-        when String then path.start_with?(pattern)
-        end
-      end
+      Emitter.emit!(event)
     end
   end
 end

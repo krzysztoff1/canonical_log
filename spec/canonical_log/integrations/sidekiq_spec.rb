@@ -60,14 +60,14 @@ RSpec.describe CanonicalLog::Integrations::Sidekiq do
       expect(hook_called).to be true
     end
 
-    it 'always emits (bypasses should_sample?)' do
+    it 'respects sampling (skips emit when should_sample? returns false)' do
       CanonicalLog.configure do |c|
         c.sinks = [sink]
         c.sampling = ->(_event_hash, _config) { false }
       end
 
       middleware.call(job_instance, msg, queue) { nil }
-      expect(sink).to have_received(:write)
+      expect(sink).not_to have_received(:write)
     end
 
     it 'clears context even on error' do

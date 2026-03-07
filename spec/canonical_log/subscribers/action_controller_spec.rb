@@ -11,7 +11,7 @@ RSpec.describe CanonicalLog::Subscribers::ActionController do
         format: :json,
         params: { 'item_id' => '42', 'password' => 'secret123', 'controller' => 'orders', 'action' => 'create' },
         view_runtime: 12.345,
-        db_runtime: 45.678
+        db_runtime: 45.678,
       }
     end
 
@@ -61,7 +61,7 @@ RSpec.describe CanonicalLog::Subscribers::ActionController do
       payload[:params] = {
         'order' => { 'token' => 'secret-token', 'amount' => '100' },
         'controller' => 'orders',
-        'action' => 'create'
+        'action' => 'create',
       }
       notification = ActiveSupport::Notifications::Event.new(
         'process_action.action_controller',
@@ -96,6 +96,32 @@ RSpec.describe CanonicalLog::Subscribers::ActionController do
     it 'does nothing when no current event' do
       CanonicalLog::Context.clear!
       expect { described_class.handle(notification) }.not_to raise_error
+    end
+
+    it 'filters params inside arrays of hashes' do
+      payload[:params] = {
+        'users' => [
+          { 'name' => 'Alice', 'password' => 'secret1' },
+          { 'name' => 'Bob', 'password' => 'secret2' },
+        ],
+        'controller' => 'orders',
+        'action' => 'create',
+      }
+      notification = ActiveSupport::Notifications::Event.new(
+        'process_action.action_controller',
+        Time.now, Time.now + 0.1, 'unique-id', payload
+      )
+      described_class.handle(notification)
+      params = CanonicalLog::Context.current.to_h[:params]
+      expect(params['users'][0]['password']).to eq('[FILTERED]')
+      expect(params['users'][0]['name']).to eq('Alice')
+      expect(params['users'][1]['password']).to eq('[FILTERED]')
+    end
+
+    it 'does nothing when disabled' do
+      CanonicalLog.configure { |c| c.enabled = false }
+      described_class.handle(notification)
+      expect(CanonicalLog::Context.current.to_h[:controller]).to be_nil
     end
   end
 end

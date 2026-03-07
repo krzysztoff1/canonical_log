@@ -45,7 +45,7 @@ RSpec.describe CanonicalLog::Event do
     it 'creates an array and appends' do
       event.append(:tags, 'important')
       event.append(:tags, 'urgent')
-      expect(event.to_h[:tags]).to eq(%w[important urgent])
+      expect(event.to_h[:tags]).to eq(['important', 'urgent'])
     end
   end
 
@@ -111,6 +111,45 @@ RSpec.describe CanonicalLog::Event do
       error = RuntimeError.new('boom')
       event.add_error(error, message: 'custom message')
       expect(event.to_h[:error][:message]).to eq('custom message')
+    end
+
+    it 'includes backtrace when exception has one' do
+      error = begin
+        raise 'boom'
+      rescue StandardError => e
+        e
+      end
+      event.add_error(error)
+      expect(event.to_h[:error][:backtrace]).to be_an(Array)
+      expect(event.to_h[:error][:backtrace].length).to eq(5)
+    end
+
+    it 'truncates backtrace to configured depth' do
+      error = begin
+        raise 'boom'
+      rescue StandardError => e
+        e
+      end
+      CanonicalLog.configuration.error_backtrace_lines = 2
+      event.add_error(error)
+      expect(event.to_h[:error][:backtrace].length).to eq(2)
+    end
+
+    it 'does not include backtrace key when exception has no backtrace' do
+      error = RuntimeError.new('boom')
+      event.add_error(error)
+      expect(event.to_h[:error]).not_to have_key(:backtrace)
+    end
+
+    it 'does not include backtrace when config is 0' do
+      error = begin
+        raise 'boom'
+      rescue StandardError => e
+        e
+      end
+      CanonicalLog.configuration.error_backtrace_lines = 0
+      event.add_error(error)
+      expect(event.to_h[:error]).not_to have_key(:backtrace)
     end
   end
 

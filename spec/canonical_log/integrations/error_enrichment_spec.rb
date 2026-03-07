@@ -35,7 +35,7 @@ RSpec.describe CanonicalLog::Integrations::ErrorEnrichment do
       rescue StandardError => e
         CanonicalLog.add(
           rescued_error_class: e.class.name,
-          rescued_error_message: e.message
+          rescued_error_message: e.message,
         )
         raise
       end

@@ -82,5 +82,35 @@ RSpec.describe CanonicalLog::Subscribers::ActiveRecord do
       CanonicalLog::Context.clear!
       expect { described_class.handle(make_notification) }.not_to raise_error
     end
+
+    it 'does nothing when disabled' do
+      CanonicalLog.configure { |c| c.enabled = false }
+      described_class.handle(make_notification)
+      expect(CanonicalLog::Context.current.to_h[:db_query_count]).to be_nil
+    end
+
+    context 'SQL literal filtering' do
+      before { CanonicalLog.configure { |c| c.slow_query_threshold_ms = 10.0 } }
+
+      it 'sanitizes SQL literals in slow queries by default' do
+        described_class.handle(make_notification(
+                                 duration: 0.050,
+                                 sql: "SELECT * FROM users WHERE email = 'admin@example.com' AND id = 42",
+                               ))
+        slow = CanonicalLog::Context.current.to_h[:slow_queries].first
+        expect(slow[:sql]).to eq("SELECT * FROM users WHERE email = '?' AND id = ?")
+      end
+
+      it 'preserves raw SQL when filter_sql_literals is false' do
+        CanonicalLog.configure do |c|
+          c.filter_sql_literals = false
+          c.slow_query_threshold_ms = 10.0
+        end
+        raw_sql = "SELECT * FROM users WHERE email = 'admin@example.com'"
+        described_class.handle(make_notification(duration: 0.050, sql: raw_sql))
+        slow = CanonicalLog::Context.current.to_h[:slow_queries].first
+        expect(slow[:sql]).to eq(raw_sql)
+      end
+    end
   end
 end

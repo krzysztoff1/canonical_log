@@ -3,7 +3,7 @@
 module CanonicalLog
   module Sinks
     class Stdout < Base
-      def write(json_string)
+      def write(json_string, level: :info) # rubocop:disable Lint/UnusedMethodArgument -- interface compliance
         $stdout.puts(json_string)
       end
     end

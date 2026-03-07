@@ -3,7 +3,7 @@
 module CanonicalLog
   module Sinks
     class Null < Base
-      def write(_json_string)
+      def write(_json_string, level: :info)
         # no-op
       end
     end
