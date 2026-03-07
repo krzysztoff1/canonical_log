@@ -1,21 +1,187 @@
+plugins:
+  - rubocop-obsession
+
 AllCops:
   NewCops: enable
   SuggestExtensions: false
   TargetRubyVersion: 3.0
 
-Style/Documentation:
+# Layout
+Layout/LineLength:
+  Max: 120
+Layout/MultilineMethodCallIndentation:
+  EnforcedStyle: indented
+Layout/FirstArrayElementIndentation:
+  EnforcedStyle: consistent
+Layout/FirstHashElementIndentation:
+  EnforcedStyle: consistent
+Layout/EmptyLinesAroundClassBody:
+  EnforcedStyle: no_empty_lines
+Layout/EmptyLinesAroundModuleBody:
+  EnforcedStyle: no_empty_lines
+Layout/ExtraSpacing:
+  AllowForAlignment: false
+Layout/SpaceInsideHashLiteralBraces:
+  EnforcedStyle: space
+Layout/EmptyLineAfterGuardClause:
   Enabled: false
 
+# Lint
+Lint/UnusedMethodArgument:
+  AllowUnusedKeywordArguments: false
+Lint/UnusedBlockArgument:
+  Enabled: true
+Lint/AmbiguousBlockAssociation:
+  Enabled: true
+Lint/ShadowingOuterLocalVariable:
+  Enabled: true
+
+# Metrics - strict limits
+Metrics/MethodLength:
+  Max: 15
+  CountAsOne:
+    - heredoc
+    - array
+    - hash
+Metrics/AbcSize:
+  Max: 17
+Metrics/CyclomaticComplexity:
+  Max: 7
+Metrics/PerceivedComplexity:
+  Max: 8
+Metrics/ClassLength:
+  Max: 100
+  CountAsOne:
+    - heredoc
+    - array
+    - hash
+Metrics/ModuleLength:
+  Max: 100
 Metrics/BlockLength:
+  Max: 25
   Exclude:
     - 'spec/**/*'
     - '*.gemspec'
+Metrics/BlockNesting:
+  Max: 3
+Metrics/ParameterLists:
+  Max: 4
+  CountKeywordArgs: true
 
-Metrics/MethodLength:
-  Max: 25
+# Naming
+Naming/MethodParameterName:
+  MinNameLength: 3
+  AllowedNames:
+    - id
+    - ip
+    - to
+    - by
+    - on
+    - in
+    - at
+    - db
+    - io
+Naming/PredicatePrefix:
+  ForbiddenPrefixes:
+    - is_
+Naming/VariableNumber:
+  EnforcedStyle: snake_case
 
-Metrics/AbcSize:
-  Max: 25
+# Style
+Style/Documentation:
+  Enabled: false
+Style/FrozenStringLiteralComment:
+  EnforcedStyle: always
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: single_quotes
+Style/SymbolArray:
+  EnforcedStyle: brackets
+Style/WordArray:
+  EnforcedStyle: brackets
+Style/TrailingCommaInArrayLiteral:
+  EnforcedStyleForMultiline: comma
+Style/TrailingCommaInHashLiteral:
+  EnforcedStyleForMultiline: comma
+Style/TrailingCommaInArguments:
+  EnforcedStyleForMultiline: comma
+Style/HashSyntax:
+  EnforcedShorthandSyntax: never
+Style/GuardClause:
+  MinBodyLength: 1
+Style/IfUnlessModifier:
+  Enabled: true
+Style/NegatedIf:
+  Enabled: true
+Style/RedundantSelf:
+  Enabled: true
+Style/RedundantReturn:
+  Enabled: true
+Style/Semicolon:
+  AllowAsExpressionSeparator: false
+Style/BlockDelimiters:
+  EnforcedStyle: line_count_based
+Style/EmptyMethod:
+  EnforcedStyle: expanded
+Style/ClassAndModuleChildren:
+  EnforcedStyle: nested
+Style/AccessorGrouping:
+  EnforcedStyle: grouped
+Style/NumericLiterals:
+  MinDigits: 5
+Style/ReturnNilInPredicateMethodDefinition:
+  Enabled: true
+Style/CollectionMethods:
+  Enabled: true
+  PreferredMethods:
+    detect: 'find'
+    reduce: 'inject'
+    collect: 'map'
+    find_all: 'select'
+Style/MapToHash:
+  Enabled: true
+Style/RedundantFreeze:
+  Enabled: true
+Style/MutableConstant:
+  EnforcedStyle: strict
 
-Metrics/CyclomaticComplexity:
-  Max: 10
+# Obsession
+Obsession/MethodOrder:
+  Enabled: true
+Obsession/NoTodos:
+  Enabled: true
+Obsession/TooManyParagraphs:
+  Enabled: true
+Obsession/NoBreakOrNext:
+  Enabled: false
+Obsession/NoParagraphs:
+  Enabled: false
+Obsession/Rails/CallbackOneMethod:
+  Enabled: false
+Obsession/Rails/FullyDefinedJsonField:
+  Enabled: false
+Obsession/Rails/MigrationBelongsTo:
+  Enabled: false
+Obsession/Rails/NoCallbackConditions:
+  Enabled: false
+Obsession/Rails/PrivateCallback:
+  Enabled: false
+Obsession/Rails/SafetyAssuredComment:
+  Enabled: false
+Obsession/Rails/ServiceName:
+  Enabled: false
+Obsession/Rails/ServicePerformMethod:
+  Enabled: false
+Obsession/Rails/ShortAfterCommit:
+  Enabled: false
+Obsession/Rails/ShortValidate:
+  Enabled: false
+Obsession/Rails/ValidateOneField:
+  Enabled: false
+Obsession/Rails/ValidationMethodName:
+  Enabled: false
+Obsession/Graphql/MutationName:
+  Enabled: false
+Obsession/Rspec/DescribePublicMethod:
+  Enabled: true

@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    canonical_log (0.1.2)
+    canonical_log (1.0.0)
       activesupport (>= 6.0)
       rack (>= 2.0)
 
@@ -76,6 +76,10 @@ GEM
     rubocop-ast (1.49.0)
       parser (>= 3.3.7.2)
       prism (~> 1.7)
+    rubocop-obsession (0.2.3)
+      activesupport
+      lint_roller (~> 1.1)
+      rubocop (~> 1.72)
     ruby-progressbar (1.13.0)
     securerandom (0.4.1)
     tzinfo (2.0.6)
@@ -95,6 +99,7 @@ DEPENDENCIES
   rake (~> 13.0)
   rspec (~> 3.0)
   rubocop (~> 1.0)
+  rubocop-obsession
 
 BUNDLED WITH
    2.7.2
