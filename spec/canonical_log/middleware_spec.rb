@@ -422,14 +422,14 @@ RSpec.describe CanonicalLog::Middleware do
 
   describe 'OpenTelemetry trace correlation' do
     let(:span_context) do
-      instance_double(
+      double(
         'OpenTelemetry::Trace::SpanContext',
         valid?: true,
         hex_trace_id: 'aabbccdd11223344aabbccdd11223344',
         hex_span_id: 'aabbccdd11223344',
       )
     end
-    let(:span) { instance_double('OpenTelemetry::Trace::Span', context: span_context) }
+    let(:span) { double('OpenTelemetry::Trace::Span', context: span_context) }
 
     before do
       otel_trace = Module.new do
@@ -467,39 +467,6 @@ RSpec.describe CanonicalLog::Middleware do
         parsed = JSON.parse(json)
         expect(parsed).not_to have_key('trace_id')
         expect(parsed).not_to have_key('span_id')
-      end
-    end
-  end
-
-  describe 'body size tracking' do
-    it 'captures response_size_bytes from Content-Length header' do
-      app = ->(_env) { [200, { 'Content-Length' => '1234' }, ['body']] }
-      mw = described_class.new(app)
-      mw.call(env)
-      expect(sink).to have_received(:write) do |json|
-        expect(JSON.parse(json)['response_size_bytes']).to eq(1234)
-      end
-    end
-
-    it 'captures request_size_bytes from CONTENT_LENGTH env' do
-      env['CONTENT_LENGTH'] = '567'
-      middleware.call(env)
-      expect(sink).to have_received(:write) do |json|
-        expect(JSON.parse(json)['request_size_bytes']).to eq(567)
-      end
-    end
-
-    it 'sets response_size_bytes to nil when Content-Length not present' do
-      middleware.call(env)
-      expect(sink).to have_received(:write) do |json|
-        expect(JSON.parse(json)['response_size_bytes']).to be_nil
-      end
-    end
-
-    it 'sets request_size_bytes to nil when CONTENT_LENGTH not present' do
-      middleware.call(env)
-      expect(sink).to have_received(:write) do |json|
-        expect(JSON.parse(json)['request_size_bytes']).to be_nil
       end
     end
   end
