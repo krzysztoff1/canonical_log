@@ -2,8 +2,12 @@
 
 [![Gem Version](https://badge.fury.io/rb/canonical_log.svg)](https://badge.fury.io/rb/canonical_log)
 
-One structured JSON log line per request. No more scattered `logger.info` calls.
-Inspired by [Stripe's canonical log lines](https://stripe.com/blog/canonical-log-lines) and [wide event logging](https://loggingsucks.com).
+One structured JSON log line per request.
+Inspired by:
+
+- https://loggingsucks.com
+- https://brandur.org/canonical-log-lines
+- https://stripe.com/blog/canonical-log-lines
 
 ## Why wide events?
 
@@ -30,6 +34,8 @@ Wide event logging captures everything in **one queryable event**:
   "action": "show",
   "db_query_count": 1,
   "db_total_time_ms": 2.1,
+  "level": "info",
+  "message": "GET /api/users/123 200",
   "user": { "id": 42, "email": "user@example.com" }
 }
 ```
@@ -64,6 +70,8 @@ Successful request with categorized context:
   "db_runtime_ms": 45.68,
   "db_query_count": 8,
   "db_total_time_ms": 45.67,
+  "level": "info",
+  "message": "POST /orders 201",
   "user": { "id": 7891, "email": "buyer@example.com" },
   "business": { "order_id": 12345, "endpoint": "create_order" }
 }
@@ -86,8 +94,11 @@ Error with structured error object:
   "db_total_time_ms": 12.45,
   "error": {
     "class": "Stripe::CardError",
-    "message": "Your card was declined."
+    "message": "Your card was declined.",
+    "backtrace": ["app/services/payment.rb:42:in `charge!'", "..."]
   },
+  "level": "error",
+  "message": "POST /payments 500",
   "user": { "id": 7891, "email": "buyer@example.com" }
 }
 ```
@@ -114,6 +125,8 @@ Request with slow queries:
       "name": "Order Load"
     }
   ],
+  "level": "info",
+  "message": "GET /admin/reports 200",
   "user": { "id": 42, "email": "admin@example.com" }
 }
 ```
@@ -157,7 +170,8 @@ A thread-local `Event` object accumulates fields during the request. Rack middle
                     │  ┌─────────────────────────────────────────────────┐
                     ├──│  Rack Middleware (automatic)                    │
                     │  │  request_id, http_method, path, query_string,  │
-                    │  │  remote_ip, user_agent, content_type            │
+                    │  │  remote_ip, user_agent, content_type,           │
+                    │  │  request_size_bytes, response_size_bytes        │
                     │  └─────────────────────────────────────────────────┘
                     │
                     │  ┌─────────────────────────────────────────────────┐
@@ -265,11 +279,14 @@ Produces:
   "error": {
     "class": "Stripe::CardError",
     "message": "Your card was declined.",
+    "backtrace": ["app/services/payment.rb:42:in `charge!'", "..."],
     "code": "card_declined",
     "retriable": false
   }
 }
 ```
+
+Backtrace includes up to 5 lines by default (configurable via `error_backtrace_lines`).
 
 All calls are safe to use even when no event is active (they silently no-op).
 
@@ -277,13 +294,35 @@ All calls are safe to use even when no event is active (they silently no-op).
 
 ```ruby
 CanonicalLog.configure do |config|
+  # Master on/off switch.
+  # Defaults to true in production (or when Rails is not defined), false otherwise.
+  # Checked at runtime, so it's toggleable per-request.
+  # config.enabled = true
+
+  # Suppress Rails' default ActionController/ActionView log subscribers (default: false).
+  # Useful when canonical log replaces the default request logging.
+  # config.suppress_rails_logging = true
+
+  # Pretty-print JSON with ANSI colors (default: false).
+  # Great for development — cyan keys, green strings, yellow numbers.
+  # config.pretty = true
+
   # Where to write log lines.
   # :auto (default) -> Stdout (JSON to $stdout).
   # Pass any object responding to #write(json_string), or an array of them.
   config.sinks = :auto
 
+  # Output format: :json (default), :pretty, or :logfmt.
+  # config.format = :json
+
   # Parameter keys replaced with [FILTERED] in output.
-  config.param_filter_keys = %w[password password_confirmation token secret]
+  config.param_filter_keys = %w[password password_confirmation token secret secret_key api_key access_token credit_card card_number cvv ssn authorization]
+
+  # Filter literal values from SQL in slow_queries (default: true).
+  # config.filter_sql_literals = true
+
+  # Filter sensitive params from query strings (default: true).
+  # config.filter_query_string = true
 
   # SQL queries slower than this (ms) are captured individually.
   config.slow_query_threshold_ms = 100.0
@@ -291,6 +330,12 @@ CanonicalLog.configure do |config|
   # Paths to skip entirely (no log line emitted).
   # Strings match by prefix, Regexps by pattern.
   config.ignored_paths = ["/health", "/assets", %r{\A/packs}]
+
+  # Fields merged into every event (e.g., app name, environment).
+  # config.default_fields = { app: "myapp", env: Rails.env }
+
+  # Number of backtrace lines included in error objects (default: 5, 0 to disable).
+  # config.error_backtrace_lines = 5
 
   # --- Sampling ---
 
@@ -324,6 +369,14 @@ CanonicalLog.configure do |config|
     end
   }
 
+  # --- Log level ---
+
+  # Custom log level resolver (overrides default status-based logic).
+  # Default: 5xx/error -> :error, 4xx -> :warn, else -> :info.
+  # config.log_level_resolver = ->(event_hash) {
+  #   event_hash[:http_status].to_i >= 500 ? :error : :info
+  # }
+
   # Hook called just before the event is serialized and emitted.
   config.before_emit = ->(event) {
     event.set(:app_version, ENV["APP_VERSION"])
@@ -344,6 +397,7 @@ end
 ```
 
 The default sampling strategy:
+
 - **Always keeps** requests with HTTP status >= 500
 - **Always keeps** requests with an error
 - **Always keeps** requests slower than `slow_request_threshold_ms`
@@ -351,43 +405,101 @@ The default sampling strategy:
 
 Pass a custom `sampling` proc for full control.
 
+## Environment-based configuration
+
+By default, canonical logging is enabled only in production (disabled in development and test). You can override this and tune other options per environment:
+
+```ruby
+CanonicalLog.configure do |config|
+  # Already defaults to production-only, but you can override:
+  config.enabled = true # enable everywhere
+
+  # Suppress Rails' default request logs when canonical log is active:
+  config.suppress_rails_logging = Rails.env.production?
+
+  # Pretty-print with colors in development:
+  config.pretty = Rails.env.development?
+end
+```
+
+| Option                   | Default                                 | Description                                                                                                                                                            |
+| ------------------------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                | `true` in production, `false` otherwise | Master on/off switch. When `false`, middleware passes through and subscribers no-op. Checked at runtime, not boot time. Without Rails, defaults to `true`.             |
+| `suppress_rails_logging` | `false`                                 | Silences Rails' built-in `ActionController::LogSubscriber` and `ActionView::LogSubscriber` by redirecting their loggers to `/dev/null`.                                |
+| `pretty`                 | `false`                                 | Shortcut for `format = :pretty`. Emits indented JSON with ANSI color codes: cyan for keys, green for strings, yellow for numbers, magenta for booleans, gray for null. |
+| `format`                 | `:json`                                 | Output format: `:json`, `:pretty`, or `:logfmt`.                                                                                                                       |
+| `default_fields`         | `{}`                                    | Hash merged into every event before emission. Useful for app name, environment, deploy version.                                                                        |
+| `filter_sql_literals`    | `true`                                  | Replaces literal values in SQL captured in `slow_queries` with `?` placeholders.                                                                                       |
+| `filter_query_string`    | `true`                                  | Filters sensitive parameters from the `query_string` field using `param_filter_keys`.                                                                                  |
+| `error_backtrace_lines`  | `5`                                     | Number of backtrace lines included in structured errors. Set to `0` to disable.                                                                                        |
+| `log_level_resolver`     | `nil`                                   | Custom proc `(event_hash) -> :info/:warn/:error`. Default logic: 5xx/error → `:error`, 4xx → `:warn`, else → `:info`.                                                  |
+
 ## What's captured automatically
 
 ### Via Rack middleware
 
-| Field | Description |
-|-------|-------------|
-| `timestamp` | ISO 8601 UTC timestamp |
-| `duration_ms` | Total request time (monotonic clock) |
-| `request_id` | From `X-Request-ID` header, Action Dispatch, or generated UUID |
-| `http_method` | GET, POST, etc. |
-| `path` | Request path |
-| `query_string` | Raw query string (if present) |
-| `remote_ip` | Client IP (respects `X-Forwarded-For`) |
-| `user_agent` | Client user agent string |
-| `content_type` | Request content type |
-| `http_status` | Response status code |
-| `error` | Structured error object (on unhandled errors) |
-| `user` | Auto-detected from Warden/Devise (id, email) |
+| Field                 | Description                                                    |
+| --------------------- | -------------------------------------------------------------- |
+| `timestamp`           | ISO 8601 UTC timestamp                                         |
+| `duration_ms`         | Total request time (monotonic clock)                           |
+| `request_id`          | From `X-Request-ID` header, Action Dispatch, or generated UUID |
+| `http_method`         | GET, POST, etc.                                                |
+| `path`                | Request path                                                   |
+| `query_string`        | Raw query string (if present)                                  |
+| `remote_ip`           | Client IP (respects `X-Forwarded-For`)                         |
+| `user_agent`          | Client user agent string                                       |
+| `content_type`        | Request content type                                           |
+| `request_size_bytes`  | Request body size from `Content-Length` header                 |
+| `http_status`         | Response status code                                           |
+| `response_size_bytes` | Response body size from `Content-Length` header                |
+| `trace_id`            | OpenTelemetry trace ID (when `opentelemetry-api` is loaded)    |
+| `span_id`             | OpenTelemetry span ID (when `opentelemetry-api` is loaded)     |
+| `error`               | Structured error object (on unhandled errors)                  |
+| `user`                | Auto-detected from Warden/Devise (id, email)                   |
+| `level`               | Log level: `info`, `warn` (4xx), or `error` (5xx/exception)    |
+| `message`             | Auto-built summary, e.g. `"GET /users 200"`                    |
 
 ### Via Action Controller subscriber
 
-| Field | Description |
-|-------|-------------|
-| `controller` | Controller class name |
-| `action` | Action name |
-| `format` | Response format (html, json, etc.) |
-| `params` | Filtered request parameters |
-| `view_runtime_ms` | Time spent rendering views |
-| `db_runtime_ms` | Time spent in database |
+| Field             | Description                        |
+| ----------------- | ---------------------------------- |
+| `controller`      | Controller class name              |
+| `action`          | Action name                        |
+| `format`          | Response format (html, json, etc.) |
+| `params`          | Filtered request parameters        |
+| `view_runtime_ms` | Time spent rendering views         |
+| `db_runtime_ms`   | Time spent in database             |
 
 ### Via Active Record subscriber
 
-| Field | Description |
-|-------|-------------|
-| `db_query_count` | Total SQL queries executed |
-| `db_total_time_ms` | Cumulative query time |
-| `slow_queries` | Array of queries exceeding the threshold |
+| Field              | Description                              |
+| ------------------ | ---------------------------------------- |
+| `db_query_count`   | Total SQL queries executed               |
+| `db_total_time_ms` | Cumulative query time                    |
+| `slow_queries`     | Array of queries exceeding the threshold |
+
+### Via ActiveSupport Cache subscriber
+
+| Field                 | Description                     |
+| --------------------- | ------------------------------- |
+| `cache_read_count`    | Total cache reads               |
+| `cache_write_count`   | Total cache writes              |
+| `cache_hit_count`     | Cache hits                      |
+| `cache_miss_count`    | Cache misses                    |
+| `cache_total_time_ms` | Cumulative cache operation time |
+
+### Via ActiveJob subscriber
+
+Each job emits its own canonical log line with:
+
+| Field         | Description          |
+| ------------- | -------------------- |
+| `job_class`   | Job class name       |
+| `queue`       | Queue name           |
+| `job_id`      | Job ID               |
+| `executions`  | Number of executions |
+| `priority`    | Job priority         |
+| `duration_ms` | Job execution time   |
 
 ## Integrations
 
@@ -405,6 +517,10 @@ end
 
 Each job emits its own log line with `job_class`, `queue`, `jid`, timing, and any errors.
 
+### OpenTelemetry
+
+When the `opentelemetry-api` gem is loaded, `trace_id` and `span_id` are automatically injected into every canonical log line from the current span context. No configuration needed — if OpenTelemetry isn't present, nothing happens.
+
 ### Error enrichment
 
 Opt-in concern that captures rescued exceptions in controllers:
@@ -414,6 +530,24 @@ class ApplicationController < ActionController::Base
   include CanonicalLog::Integrations::ErrorEnrichment
 end
 ```
+
+### Logfmt formatter
+
+For `logfmt`-style output instead of JSON:
+
+```ruby
+CanonicalLog.configure do |config|
+  config.format = :logfmt
+end
+```
+
+Produces:
+
+```
+timestamp=2026-02-19T14:23:01.123Z duration_ms=45.12 http_method=GET path=/api/users/123 http_status=200 level=info
+```
+
+Nested hashes are flattened with dots (e.g., `user.id=42`). Values with spaces or special characters are quoted.
 
 ### Custom sinks
 
@@ -458,6 +592,8 @@ A complete wide event contains:
   "db_runtime_ms": 18.44,
   "db_query_count": 3,
   "db_total_time_ms": 18.44,
+  "level": "info",
+  "message": "GET /api/users/123 200",
   "user": { "id": 123, "email": "user@example.com", "tier": "premium" },
   "business": { "endpoint": "get_user", "feature_flags": ["new_ui"] },
   "infra": { "region": "eu-central-1" },
@@ -481,12 +617,6 @@ A complete wide event contains:
 - Ruby >= 3.0
 - Rack >= 2.0
 - ActiveSupport >= 6.0
-
-## Resources
-
-- [Canonical Log Lines](https://brandur.org/canonical-log-lines) -- The pattern this gem implements
-- [Stripe's approach](https://stripe.com/blog/canonical-log-lines) -- Stripe's canonical log lines
-- [loggingsucks.com](https://loggingsucks.com/) -- The philosophy behind wide events
 
 ## License
 
