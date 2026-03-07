@@ -6,7 +6,6 @@
 - Refactored emit logic into shared `CanonicalLog::Emitter` — Sidekiq integration now applies sampling and formatting consistently
 
 ### Added
-- `request_size_bytes` and `response_size_bytes` fields in middleware — tracks request/response body sizes from `Content-Length` headers
 - Automatic OpenTelemetry `trace_id`/`span_id` injection when `opentelemetry-api` is present
 - `enabled` config option (default: `true` in production, `false` in development/test) — master on/off switch for canonical logging, checked at runtime so it's toggleable per-request. Without Rails, defaults to `true`.
 - `suppress_rails_logging` config option (default: `false`) — silences Rails' built-in ActionController and ActionView log subscribers when canonical log is active

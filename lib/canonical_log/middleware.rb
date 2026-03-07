@@ -41,7 +41,6 @@ module CanonicalLog
         remote_ip: env['HTTP_X_FORWARDED_FOR'] || env['REMOTE_ADDR'],
         user_agent: env['HTTP_USER_AGENT'],
         content_type: env['CONTENT_TYPE'],
-        request_size_bytes: env['CONTENT_LENGTH']&.to_i,
       )
 
       enrich_trace_context(event)
@@ -73,7 +72,6 @@ module CanonicalLog
     def execute_request(env)
       status, headers, body = @app.call(env)
       Context.current&.set(:http_status, status)
-      Context.current&.set(:response_size_bytes, headers['Content-Length']&.to_i)
       enrich_user_context(env)
       [status, headers, body]
     end

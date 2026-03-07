@@ -170,8 +170,7 @@ A thread-local `Event` object accumulates fields during the request. Rack middle
                     │  ┌─────────────────────────────────────────────────┐
                     ├──│  Rack Middleware (automatic)                    │
                     │  │  request_id, http_method, path, query_string,  │
-                    │  │  remote_ip, user_agent, content_type,           │
-                    │  │  request_size_bytes, response_size_bytes        │
+                    │  │  remote_ip, user_agent, content_type            │
                     │  └─────────────────────────────────────────────────┘
                     │
                     │  ┌─────────────────────────────────────────────────┐
@@ -449,9 +448,7 @@ end
 | `remote_ip`           | Client IP (respects `X-Forwarded-For`)                         |
 | `user_agent`          | Client user agent string                                       |
 | `content_type`        | Request content type                                           |
-| `request_size_bytes`  | Request body size from `Content-Length` header                 |
 | `http_status`         | Response status code                                           |
-| `response_size_bytes` | Response body size from `Content-Length` header                |
 | `trace_id`            | OpenTelemetry trace ID (when `opentelemetry-api` is loaded)    |
 | `span_id`             | OpenTelemetry span ID (when `opentelemetry-api` is loaded)     |
 | `error`               | Structured error object (on unhandled errors)                  |
